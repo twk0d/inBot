@@ -1,0 +1,75 @@
+## Error Handling and API Error Contract
+**Date:** `2026-04-18`
+**Status:** `Accepted`
+
+---
+
+### Context
+The API needs predictable error responses for frontend clients, integrations, and
+internal debugging. Inconsistent error shapes increase coupling, complicate client
+logic, and make observability harder.
+
+Without a unified contract, each layer — validation, domain, authentication,
+authorization, and external integrations — produces different error shapes,
+forcing clients to handle multiple formats and making monitoring unreliable.
+
+---
+
+### Decision
+Adopt a **unified API error contract** enforced by a global `ExceptionFilter`
+in NestJS that intercepts all unhandled exceptions and normalizes them into a
+consistent response shape.
+
+**Standard error payload:**
+```typescript
+{
+  code: string;       // stable machine-readable error code (e.g. CONTACT_NOT_FOUND)
+  message: string;    // human-readable summary
+  details?: unknown;  // structured validation or domain details when applicable
+  requestId: string;  // correlation ID from observability context
+  timestamp: string;  // ISO 8601 response generation time
+}
+```
+
+**HTTP status mapping:**
+
+| Scenario                  | Status                      |
+| ------------------------- | --------------------------- |
+| Validation failure (Zod)  | `422 Unprocessable Entity`  |
+| Missing required field    | `400 Bad Request`           |
+| Unauthenticated           | `401 Unauthorized`          |
+| Forbidden                 | `403 Forbidden`             |
+| Resource not found        | `404 Not Found`             |
+| Duplicate resource        | `409 Conflict`              |
+| Rate limit exceeded       | `429 Too Many Requests`     |
+| ViaCEP unavailable        | `502 Bad Gateway`           |
+| ViaCEP timeout            | `504 Gateway Timeout`       |
+| Unexpected internal error | `500 Internal Server Error` |
+
+**Zod validation errors** are mapped to the `details` field in a flat,
+field-keyed structure:
+```typescript
+details: {
+  name: ['String must contain at least 2 character(s)'],
+  email: ['Invalid email'],
+}
+```
+
+Internal stack traces and sensitive information are never included in responses.
+Errors are logged with full context before the normalized response is sent.
+
+---
+
+### Consequences
+- Clients handle errors consistently with a single parsing strategy regardless
+  of error origin
+- The `requestId` field connects client-reported errors to server-side logs
+  without exposing internal details
+- Security posture improves by preventing stack trace and implementation detail
+  leakage
+- Monitoring and alerting become more reliable with stable, machine-readable
+  error codes
+- The global exception filter must cover all NestJS exception types including
+  `HttpException`, `ZodValidationException`, and unexpected runtime errors
+- Error contract changes must be treated as breaking changes and versioned
+  accordingly
