@@ -26,8 +26,9 @@ app.enableCors({
 });
 ```
 
-**3. Input sanitization** - using `whitelist: true` and `forbidNonWhitelisted: true`
-in the global `ValidationPipe` (already defined in the validation ADR), ensuring that only fields declared in DTOs are accepted.
+**3. Input sanitization** — enforced by `nestjs-zod`'s `ZodValidationPipe`,
+which rejects any field not declared in the Zod schema before any processing
+occurs, eliminating unexpected payload fields at the boundary.
 
 ---
 

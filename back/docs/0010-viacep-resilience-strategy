@@ -9,37 +9,82 @@ The backend depends on ViaCEP as an external service for address lookup. Externa
 API instability can degrade user experience and may cause cascading failures in
 our own API if not controlled.
 
-A robust strategy is required to keep latency predictable and reduce outage impact.
+Three distinct problems need to be addressed independently:
+
+**Transient failures** — temporary network errors or 5xx responses that resolve
+on retry. Without retry logic, a single flaky response fails the request
+permanently.
+
+**Prolonged outages** — sustained ViaCEP unavailability. Without a circuit breaker,
+every incoming request waits for the full timeout before failing, exhausting
+thread pool and degrading the entire API.
+
+**Repeated lookups** — CEP data is static and does not change. Without caching,
+every address lookup generates an outbound HTTP call, increasing latency and
+dependency pressure unnecessarily.
+
+The options considered for circuit breaking were Opossum and Cockatiel.
+Cockatiel offers a more modern composable API with native retry policies, but
+Opossum is more mature, widely adopted in the Node.js ecosystem, and provides
+the event-driven observability hooks needed for production monitoring. Since
+retry is handled separately by `axios-retry`, Cockatiel's combined policy
+approach does not offer a meaningful advantage here.
 
 ---
 
 ### Decision
-Adopt a **layered resilience strategy** for ViaCEP integration with:
+Adopt a **layered resilience strategy** for ViaCEP integration with four
+complementary layers acting at different points in the request lifecycle:
 
-1. **Circuit Breaker (Opossum)**
-- Open the circuit after repeated failures
-- Short-circuit requests while unhealthy
-- Probe recovery with half-open transitions
+**1. In-memory cache (first)**
+- Cache CEP lookups with a TTL of `86400s` (24h)
+- Serve cached values before any outbound call is attempted
+- CEP data is static by nature — addresses tied to a ZIP code do not change,
+  making 24h a safe and conservative TTL
 
-2. **Retry with Exponential Backoff (axios-retry)**
-- Up to 3 attempts for transient failures
+**2. Circuit Breaker (Opossum)**
+- Open the circuit after repeated failures (50% error threshold)
+- Short-circuit requests while unhealthy, returning a controlled fallback immediately
+- Probe recovery with half-open transitions after 30s reset timeout
+
+**3. Retry with Exponential Backoff (axios-retry)**
+- Up to 3 attempts for transient failures (network errors and 5xx responses)
 - Increasing delays between attempts
-- No retries for non-retryable client errors
+- No retries for non-retryable client errors (4xx)
 
-3. **In-memory cache**
-- Cache CEP lookups for `86400s` (24h)
-- Serve cached values first when available
-- Reduce dependency pressure and repeated outbound calls
-
-4. **Request timeout**
+**4. Request timeout**
 - Enforce a 5-second timeout for ViaCEP calls
-- Return controlled fallback error behavior on timeout
+- Return controlled fallback error on timeout
+
+```typescript
+// viacep.adapter.ts
+const breakerOptions = {
+  timeout: 5000,
+  errorThresholdPercentage: 50,
+  resetTimeout: 30000,
+  volumeThreshold: 5,
+};
+
+const breaker = new CircuitBreaker(fetchFromViaCep, breakerOptions);
+
+breaker.on('open',     () => logger.warn('[ViaCEP] Circuit breaker OPEN'));
+breaker.on('halfOpen', () => logger.log('[ViaCEP] Circuit breaker HALF-OPEN'));
+breaker.on('close',    () => logger.log('[ViaCEP] Circuit breaker CLOSED'));
+
+breaker.fallback(() => {
+  throw new ServiceUnavailableException('ZIP code service temporarily unavailable');
+});
+```
 
 ---
 
 ### Consequences
-- External failures are isolated, reducing cascading outages in our API
-- Retry + breaker improve availability for transient and partial failures
-- Cache reduces latency and outbound traffic for repeated CEP queries
-- Data freshness is bounded by cache TTL and must be accepted as a trade-off
-- Integration behavior becomes more predictable and easier to monitor
+- The four layers act at different points: cache avoids the call entirely, retry
+  recovers transient failures, circuit breaker protects against prolonged outages,
+  and timeout prevents slow failures from blocking the request indefinitely
+- Opossum event hooks provide production-ready observability for circuit state
+  transitions without additional instrumentation
+- The 24h TTL is a conscious trade-off — CEP data is static, so staleness risk
+  is negligible
+- If cache storage needs to persist across restarts, the in-memory cache can be
+  replaced with Redis without changing the circuit breaker or retry logic

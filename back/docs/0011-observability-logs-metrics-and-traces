@@ -1,0 +1,80 @@
+## Observability: Logs, Metrics, and Traces
+**Date:** `2026-04-18`
+**Status:** `Accepted`
+
+---
+
+### Context
+As the API grows, troubleshooting by local debugging alone becomes insufficient.
+Production incidents require fast diagnosis of where failures happen and why.
+
+Without explicit observability standards, failures become harder to detect,
+correlate, and resolve. Three distinct concerns need to be addressed:
+
+**Logs** — capturing what happened, when, and in which context. Without structured
+logs, correlating events across requests is manual and error-prone.
+
+**Metrics** — measuring system behavior over time. Without metrics, latency
+degradation and error rate spikes are only noticed after user impact.
+
+**Traces** — following a request across layers. Without trace context propagation,
+identifying which layer introduced a failure requires guesswork.
+
+The options considered were ad-hoc `console.log`, NestJS built-in logger, and
+`pino` with `nestjs-pino`. Plain console logging produces unstructured output
+that is hard to parse and query. The NestJS built-in logger is convenient but
+does not produce structured JSON by default. `pino` is one of the fastest Node.js
+loggers, produces structured JSON natively, and `nestjs-pino` integrates it
+directly into the NestJS request lifecycle with automatic request ID propagation.
+
+---
+
+### Decision
+Adopt a **minimum observability baseline** using `pino` via `nestjs-pino` as the
+structured logger, with metrics and trace context propagated through request
+interceptors.
+
+**1. Structured logging with `nestjs-pino`**
+```typescript
+// app.module.ts
+LoggerModule.forRoot({
+  pinoHttp: {
+    level: process.env.LOG_LEVEL ?? 'info',
+    transport: process.env.NODE_ENV !== 'production'
+      ? { target: 'pino-pretty' }
+      : undefined,
+  },
+}),
+```
+Every log entry includes: `requestId`, `userId` when available, `method`,
+`url`, `statusCode`, `responseTime`, and `environment`. Sensitive fields
+(passwords, tokens) are explicitly redacted.
+
+**2. Metrics**
+- Request count, latency, and error rate per endpoint
+- External dependency latency and error metrics (ViaCEP)
+- Rate-limit hit counters and authentication failure counters
+- Exposed via a `/metrics` endpoint compatible with Prometheus scraping
+
+**3. Trace context propagation**
+- Correlation ID generated per request (UUID) and attached to every log entry
+- Propagated through service, repository, and adapter layers via NestJS
+  `AsyncLocalStorage` context
+- Included in all API error responses as `requestId` for client-side correlation
+
+**Health checks**
+- `/health` — liveness check
+- `/ready` — readiness check (includes database connectivity)
+
+---
+
+### Consequences
+- Incident response becomes faster due to structured, queryable log output
+- Correlation IDs connect logs across layers for the same request without
+  manual tracing
+- `pino` adds negligible runtime overhead compared to other loggers
+- `pino-pretty` improves local development readability without affecting
+  production output
+- Teams must maintain observability conventions — redaction rules and log
+  fields — as part of the development workflow
+- Non-functional regressions become visible earlier through metrics and alerts
