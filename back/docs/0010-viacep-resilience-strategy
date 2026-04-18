@@ -1,0 +1,45 @@
+## ViaCEP Resilience Strategy
+**Date:** `2026-04-18`
+**Status:** `Accepted`
+
+---
+
+### Context
+The backend depends on ViaCEP as an external service for address lookup. External
+API instability can degrade user experience and may cause cascading failures in
+our own API if not controlled.
+
+A robust strategy is required to keep latency predictable and reduce outage impact.
+
+---
+
+### Decision
+Adopt a **layered resilience strategy** for ViaCEP integration with:
+
+1. **Circuit Breaker (Opossum)**
+- Open the circuit after repeated failures
+- Short-circuit requests while unhealthy
+- Probe recovery with half-open transitions
+
+2. **Retry with Exponential Backoff (axios-retry)**
+- Up to 3 attempts for transient failures
+- Increasing delays between attempts
+- No retries for non-retryable client errors
+
+3. **In-memory cache**
+- Cache CEP lookups for `86400s` (24h)
+- Serve cached values first when available
+- Reduce dependency pressure and repeated outbound calls
+
+4. **Request timeout**
+- Enforce a 5-second timeout for ViaCEP calls
+- Return controlled fallback error behavior on timeout
+
+---
+
+### Consequences
+- External failures are isolated, reducing cascading outages in our API
+- Retry + breaker improve availability for transient and partial failures
+- Cache reduces latency and outbound traffic for repeated CEP queries
+- Data freshness is bounded by cache TTL and must be accepted as a trade-off
+- Integration behavior becomes more predictable and easier to monitor

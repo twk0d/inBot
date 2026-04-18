@@ -1,0 +1,36 @@
+## CQRS in the Application Layer
+**Date:** `2026-04-18`
+**Status:** `Accepted`
+
+---
+
+### Context
+As the API grows, combining read and write logic in the same handlers increases
+coupling and makes maintenance harder. The project also follows a top-down,
+contract-first approach, where high-level use cases define ports that lower-level
+infrastructure implementations must satisfy.
+
+---
+
+### Decision
+Adopt **CQRS (Command Query Responsibility Segregation)** in the application
+layer.
+
+Rules:
+- **Commands** handle state changes (writes)
+- **Queries** handle data retrieval (reads)
+- Command and query handlers depend on application contracts (ports), not on
+  concrete infrastructure classes
+- Infrastructure (Prisma repositories, external adapters) implements these
+  contracts and is wired through NestJS dependency injection
+
+This is an architectural organization choice and does not require event sourcing.
+
+---
+
+### Consequences
+- Clear separation of responsibilities between write and read paths
+- Better alignment with top-down, contract-first development
+- Easier testing because handlers depend on contracts
+- More files and explicit wiring in exchange for clearer boundaries
+- Future optimizations for read and write paths can evolve independently

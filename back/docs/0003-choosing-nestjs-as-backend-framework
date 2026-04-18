@@ -1,0 +1,26 @@
+## Choosing NestJS as the Backend Framework
+**Date:** `2026-04-17`
+**Status:** `Accepted`
+
+---
+
+### Context
+It is necessary to choose a Node.js framework to structure the backend application.
+The options considered were Express, Fastify, and NestJS.
+
+Express is minimal and widely known, but it requires developers to define the project structure manually, which can lead to inconsistencies as the project grows. Fastify offers excellent performance but has a smaller ecosystem.
+
+NestJS provides an opinionated structure with native modules, controllers, and providers, directly aligned with the Layered Architecture already selected for this project. In addition, it has native TypeScript support, dependency injection, and easier integration with validation libraries, as well as greater familiarity for the developer.
+
+---
+
+### Decision
+Adopt **NestJS** as the main backend framework, using TypeScript as the default language together with the `--strict` flag for strong typing.
+
+---
+
+### Consequences
+- NestJS module structure naturally reinforces separation between layers
+- Native dependency injection makes it easier to swap implementations (for example, adapters)
+- TypeScript provides static typing and reduces runtime errors. Combined with strict mode, it strengthens data typing and helps prevent errors
+- The learning curve is steeper than Express, but the organizational benefits are worth it for an application that will be evaluated for maintainability

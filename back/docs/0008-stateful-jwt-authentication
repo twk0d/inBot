@@ -1,0 +1,56 @@
+## Stateful JWT Authentication
+**Date:** `2026-04-17`
+**Status:** `Accepted`
+
+---
+
+### Context
+It is necessary to implement authentication in the API. The standard stateless JWT approach
+is simple to implement, the token carries all required information, and
+theoretically does not require a database lookup on every request.
+
+However, the central stateless argument, avoiding database lookups, falls apart
+once refresh tokens are introduced. Refresh tokens must be persisted to guarantee revocation, one-time usage (rotation), and per-device traceability. In other words, the database lookup happens anyway, only at different times.
+
+Since a database lookup is already unavoidable with refresh tokens, the stateless approach loses its main advantage in this context while still not removing the need for persistence. In addition, stateless JWT does not allow access token revocation before expiration; forced logout, password changes, and administrative session termination are impossible without a blacklist or very short expiration windows.
+
+The optimization of skipping database lookups during the access token validity window (for example, 15 minutes) is only more attractive in very high-throughput APIs,
+where each avoided lookup provides measurable performance gains. For this API's expected volume, this trade-off does not apply. The additional complexity of managing two tokens and refresh rotation does not bring proportional benefit.
+
+The stateful approach solves both problems with a single strategy,
+proportional to the project scope.
+
+---
+
+### Decision
+Implement stateful JWT with access tokens stored in the database via Prisma,
+linking each token to the user who generated it and allowing immediate revocation.
+
+```prisma
+model User {
+  id           String        @id @default(uuid())
+  email        String        @unique
+  password     String
+  accessTokens AccessToken[]
+}
+
+model AccessToken {
+  id        String    @id @default(uuid())
+  token     String    @unique
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+  expiresAt DateTime
+  revokedAt DateTime?
+}
+```
+
+Request validation checks the database to verify whether the token exists and has not been revoked. Forced logout is done by setting `revokedAt` in the record.
+
+---
+
+### Consequences
+- Tokens can be revoked immediately, regardless of expiration time - forced logout, password changes, and administrative termination work without a separate blacklist
+- The `User <-> AccessToken` relationship allows multiple authenticated devices simultaneously with individual session control
+- The database lookup per authenticated request would already be unavoidable with refresh tokens - stateful does not introduce meaningful additional overhead in this context
+- The approach is simpler than stateless + refresh token rotation, with less error surface and a single persistence strategy
+- If the project scales and per-request lookups become a bottleneck, valid tokens can be cached in memory with a short TTL without changing revocation logic

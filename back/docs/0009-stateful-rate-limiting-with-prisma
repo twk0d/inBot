@@ -1,0 +1,42 @@
+## Stateful Rate Limiting with Prisma
+**Date:** `2026-04-18`
+**Status:** `Accepted`
+
+---
+
+### Context
+The API needs protection against abuse, brute force, and traffic spikes. In-memory
+rate limiting is simple, but it can be bypassed after service restarts and does
+not provide centralized control across multiple instances.
+
+The project already uses PostgreSQL with Prisma, which enables persistent and
+auditable request tracking for throttling decisions.
+
+---
+
+### Decision
+Adopt a **stateful rate limiting strategy with Prisma + PostgreSQL**.
+
+Rate-limit counters and windows will be persisted in the database, using keys
+that can combine dimensions such as:
+- Route or endpoint identifier
+- User ID (when authenticated)
+- IP address (for public endpoints)
+- HTTP method
+
+Configuration will be **granular per endpoint**, allowing different limits for:
+- Authentication routes (stricter)
+- Public lookup routes (balanced)
+- Internal or privileged routes (custom)
+
+When limits are exceeded, the API will return `429 Too Many Requests` with clear
+retry metadata headers.
+
+---
+
+### Consequences
+- Restarting the API does not reset rate-limit state, reducing bypass risk
+- Multi-instance deployments share a single source of truth for throttling
+- Endpoint-level granularity improves control and avoids one-size-fits-all limits
+- Database writes increase with traffic and require indexing/TTL cleanup strategy
+- Operational visibility improves because throttling decisions are persisted and auditable
