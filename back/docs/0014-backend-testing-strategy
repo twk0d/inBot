@@ -1,0 +1,46 @@
+## Backend Testing Strategy
+**Date:** `2026-04-18`
+**Status:** `Accepted`
+
+---
+
+### Context
+Backend quality depends on fast feedback for business rules, integration points,
+and regression prevention. Relying only on manual validation increases risk and
+release uncertainty.
+
+The project uses Jest and requires clear boundaries between test types.
+
+---
+
+### Decision
+Adopt a **multi-layer backend testing strategy** with Jest:
+
+1. **Unit tests**
+- Focus on pure business logic and edge cases
+- Mock external dependencies and persistence boundaries
+- Run quickly in local and CI workflows
+
+2. **Integration tests**
+- Validate module interactions and repository behavior
+- Use PostgreSQL-backed test environment when persistence behavior matters
+- Cover authentication, rate limiting, and error mapping paths
+
+3. **End-to-end (E2E) tests**
+- Validate critical HTTP flows from request to response
+- Include happy paths and critical failure paths
+- Ensure contracts (status codes and payload shape) remain stable
+
+Quality gates:
+- Run tests in CI for pull requests
+- Block merges on failing tests
+- Prioritize critical path coverage over raw percentage goals
+
+---
+
+### Consequences
+- Regressions are detected earlier with layered feedback
+- Confidence in refactors increases, especially in core modules
+- CI execution time and infrastructure cost increase
+- Test data/environment management becomes an ongoing discipline
+- Architectural decisions become enforceable through executable tests

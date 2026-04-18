@@ -1,0 +1,57 @@
+## Input Data Validation
+**Date:** `2026-04-17`
+**Status:** `Accepted`
+
+---
+
+### Context
+It is necessary to ensure that data received by the API is in the expected format
+before reaching the Service layer. Without input validation, malformed
+or malicious data can cause unexpected errors or vulnerabilities.
+
+The options considered were manual validation, Joi, the native NestJS pipe with
+`class-validator` + `class-transformer`, and Zod.
+
+`class-validator` is the native NestJS solution and integrates automatically with
+Swagger. However, it depends on experimental TypeScript decorators and does not provide type inference, so types must be declared manually, causing duplication between class and type.
+
+Zod provides automatic type inference, more fluent syntax, and more descriptive errors. For NestJS integration, a custom pipe is required, and for Swagger integration, the `nestjs-zod` library is needed. It generates OpenAPI documentation automatically from Zod schemas, eliminating the main advantage of `class-validator` in this context.
+
+Since the frontend will also use Zod, schema reuse between backend and frontend is an additional advantage.
+
+---
+
+### Decision
+Use **Zod** with **`nestjs-zod`** for input validation and automatic OpenAPI/Swagger documentation generation.
+
+```typescript
+// main.ts
+import { patchNestJsSwagger } from 'nestjs-zod';
+patchNestJsSwagger(); // enables Swagger generation from Zod schemas
+
+app.useGlobalPipes(new ZodValidationPipe()); // pipe already included in nestjs-zod
+```
+
+```typescript
+// create-contact.schema.ts
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
+
+const CreateContactSchema = z.object({
+  name: z.string().min(2),
+  email: z.string().email(),
+  cep: z.string().length(8),
+});
+
+export class CreateContactDto extends createZodDto(CreateContactSchema) {}
+```
+
+---
+
+### Consequences
+- Automatic type inference with Zod removes duplication between schema and type
+- `nestjs-zod` generates Swagger documentation automatically from schemas, without manual `@nestjs/swagger` decorators
+- The validation pipe is already included in `nestjs-zod`, so no custom implementation is needed
+- Invalid data is rejected before reaching the Service layer with structured and descriptive errors
+- Shared Zod schemas can be reused in frontend forms and backend validation, reducing contract drift
+- Adopting `nestjs-zod` preserves full compatibility with the NestJS ecosystem, including Swagger, without giving up Zod advantages

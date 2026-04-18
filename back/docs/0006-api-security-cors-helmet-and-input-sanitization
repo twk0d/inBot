@@ -1,0 +1,38 @@
+## API Security: CORS, Helmet, and Input Sanitization
+**Date:** `2026-04-17`
+**Status:** `Accepted`
+
+---
+
+### Context
+Publicly exposed APIs are subject to common attack vectors such as clickjacking,
+cross-site scripting (XSS), requests from unauthorized origins (CORS), and malicious payload injection. It is necessary to adopt security measures from the start of development.
+
+---
+
+### Decision
+Adopt three layers of protection configured globally in the application bootstrap:
+
+**1. Helmet** - automatically configures HTTP security headers:
+```typescript
+app.use(helmet());
+```
+
+**2. Restrictive CORS** - allows only known origins:
+```typescript
+app.enableCors({
+  origin: process.env.ALLOWED_ORIGIN ?? 'http://localhost:5173',
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+});
+```
+
+**3. Input sanitization** - using `whitelist: true` and `forbidNonWhitelisted: true`
+in the global `ValidationPipe` (already defined in the validation ADR), ensuring that only fields declared in DTOs are accepted.
+
+---
+
+### Consequences
+- Helmet prevents common attacks through HTTP headers without manually configuring each header
+- Restrictive CORS prevents unauthorized origins from consuming the API
+- ValidationPipe sanitization removes unexpected fields before any processing, reducing the attack surface
+- The three layers are complementary and act at different points in the request lifecycle: header -> origin -> payload

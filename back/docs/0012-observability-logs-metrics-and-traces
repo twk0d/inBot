@@ -1,0 +1,44 @@
+## Observability: Logs, Metrics, and Traces
+**Date:** `2026-04-18`
+**Status:** `Accepted`
+
+---
+
+### Context
+As the API grows, troubleshooting by local debugging alone becomes insufficient.
+Production incidents require fast diagnosis of where failures happen and why.
+
+Without explicit observability standards, failures become harder to detect,
+correlate, and resolve.
+
+---
+
+### Decision
+Adopt a **minimum observability baseline** with three pillars:
+
+1. **Structured logging**
+- JSON logs with consistent fields
+- Include request ID / correlation ID
+- Include user/session identifiers when available (without sensitive data)
+
+2. **Metrics**
+- Request count, latency, and error rate per endpoint
+- External dependency latency/error metrics (ViaCEP)
+- Rate-limit hit counters and authentication failure counters
+
+3. **Tracing**
+- Propagate request context across layers
+- Track critical spans: controller, service, repository, external calls
+
+Additionally:
+- Expose health/readiness endpoints for runtime checks
+- Define alert thresholds for error spikes and latency degradation
+
+---
+
+### Consequences
+- Incident response becomes faster due to better signal quality
+- Root-cause analysis improves with correlation across logs/metrics/traces
+- Extra telemetry adds small runtime and storage overhead
+- Teams must maintain observability conventions as part of development workflow
+- Non-functional regressions become visible earlier through alerts

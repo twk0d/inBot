@@ -1,0 +1,41 @@
+## Environment Variable Management
+**Date:** `2026-04-17`
+**Status:** `Accepted`
+
+---
+
+### Context
+The application has sensitive settings that vary by environment, such as database credentials and the base URL of the ViaCEP API. These settings must not be hardcoded in source code or versioned in the repository.
+
+---
+
+### Decision
+Use **@nestjs/config** for centralized environment variable management with the following files:
+
+- `.env` - local environment variables (not versioned, listed in `.gitignore`)
+- `.env.example` - template with required keys and placeholder values (versioned)
+
+```bash
+# .env.example
+PORT=3000
+DATABASE_HOST=localhost
+DATABASE_PORT=5432
+DATABASE_USER=postgres
+DATABASE_PASSWORD=postgres
+DATABASE_NAME=contacts_db
+VIACEP_BASE_URL=https://viacep.com.br/ws
+```
+
+`ConfigModule` will be registered as global so any module can inject `ConfigService` without reimporting it.
+
+```typescript
+// app.module.ts
+ConfigModule.forRoot({ isGlobal: true })
+```
+
+---
+
+### Consequences
+- No credentials are exposed in the repository
+- Any developer who clones the project will know exactly which variables to configure through `.env.example`
+- Changing values by environment (local, staging, production) does not require code changes

@@ -1,0 +1,30 @@
+## Contact Registration with ZIP Code Lookup
+**Date:** `2026-04-17`
+**Status:** `Accepted`
+
+---
+
+### Context
+It is necessary to build a fullstack application that allows contact registration.
+When a ZIP code is provided, the address fields must be automatically filled
+through integration with the public ViaCEP API. The application must be secure,
+scalable, and easy to run locally with Docker. The API must also be documented
+with Swagger / OpenAPI.
+
+---
+
+### Decision
+Build a fullstack application with:
+- **Backend:** Node.js with a logically layered architecture
+- **Frontend:** React with Vite and CSS Modules
+- **Database:** PostgreSQL
+- **Infrastructure:** Docker Compose orchestrating all services
+- **External integration:** ViaCEP consumed by the backend, not by the frontend
+- **Documentation:** Swagger for API documentation and ADRs for architecture and engineering documentation.
+
+---
+
+### Consequences
+- The frontend never calls ViaCEP directly, centralizing the integration in the backend
+- Docker Compose ensures that anyone can run the project with a single command
+- Layer separation makes testing and future maintenance easier
