@@ -1,0 +1,1 @@
+export const VIACEP_GATEWAY = 'VIACEP_GATEWAY';
