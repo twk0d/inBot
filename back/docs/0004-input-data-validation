@@ -26,10 +26,20 @@ Use **Zod** with **`nestjs-zod`** for input validation and automatic OpenAPI/Swa
 
 ```typescript
 // main.ts
-import { patchNestJsSwagger } from 'nestjs-zod';
-patchNestJsSwagger(); // enables Swagger generation from Zod schemas
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { ZodValidationPipe } from 'nestjs-zod';
 
-app.useGlobalPipes(new ZodValidationPipe()); // pipe already included in nestjs-zod
+  app.useGlobalPipes(new ZodValidationPipe()); // pipe already included in nestjs-zod
+
+  const openApiDoc = new DocumentBuilder()
+    .setTitle('InBot API')
+    .setDescription('The InBot API description')
+    .setVersion('1.0')
+    .addTag('inbot')
+    .build();
+
+  const documentFactory = SwaggerModule.createDocument(app, openApiDoc);
+  SwaggerModule.setup('api', app, documentFactory);
 ```
 
 ```typescript
