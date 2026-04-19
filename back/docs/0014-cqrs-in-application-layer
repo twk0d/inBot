@@ -10,11 +10,31 @@ coupling and makes maintenance harder. The project also follows a top-down,
 contract-first approach, where high-level use cases define ports that lower-level
 infrastructure implementations must satisfy.
 
+Beyond organizational concerns, the project already presents a natural asymmetry
+between read and write operations. Write operations are inherently complex
+creating a contact involves CEP validation via an external API with retry logic
+and a circuit breaker, followed by persistence. Read operations, by contrast,
+are straightforward database queries with no external dependencies.
+
+This asymmetry already exists in practice. CQRS formalizes it explicitly, making
+the separation visible in the codebase rather than implicit in a shared service.
+
+The traditional trade-off against CQRS is the added complexity of implementing
+command and query buses, handler registration, and dispatch infrastructure.
+However, `@nestjs/cqrs` absorbs this complexity entirely the bus infrastructure,
+handler wiring, and dispatch mechanism are provided out of the box, reducing the
+practical overhead of adopting CQRS to handler organization rather than
+infrastructure implementation.
+
+Event Sourcing was considered and deliberately discarded it would introduce
+disproportionate complexity for the current scope without meaningful benefit.
+
 ---
 
 ### Decision
 Adopt **CQRS (Command Query Responsibility Segregation)** in the application
-layer.
+layer using `@nestjs/cqrs`, which provides the `CommandBus` and `QueryBus`
+infrastructure out of the box.
 
 Rules:
 - **Commands** handle state changes (writes)
@@ -23,14 +43,21 @@ Rules:
   concrete infrastructure classes
 - Infrastructure (Prisma repositories, external adapters) implements these
   contracts and is wired through NestJS dependency injection
-
-This is an architectural organization choice and does not require event sourcing.
+- This is an architectural organization choice and does not require event sourcing
 
 ---
 
 ### Consequences
+- The natural asymmetry between complex writes and simple reads is made explicit
+  and enforced by the architecture, rather than living as implicit convention
+  inside a shared service
 - Clear separation of responsibilities between write and read paths
 - Better alignment with top-down, contract-first development
-- Easier testing because handlers depend on contracts
+- Handlers depend on contracts, not concrete implementations easier to test
+  in isolation with mocks
+- The complexity trade-off typically associated with CQRS is significantly
+  mitigated by `@nestjs/cqrs` bus implementation, handler registration and
+  dispatch are abstracted away, leaving only handler organization as overhead
 - More files and explicit wiring in exchange for clearer boundaries
 - Future optimizations for read and write paths can evolve independently
+- Event Sourcing was explicitly ruled out as disproportionate to the current scope
